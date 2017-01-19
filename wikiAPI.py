@@ -1,6 +1,7 @@
 import requests
 import os
 import numpy as np
+import logging
 
 class attributes(object):
     def __init__(self):
@@ -60,6 +61,9 @@ def check_continue(title, n):
     global done, broken
     return title not in done and len(done) < n and title not in broken
 
+def clean_string(s):
+    return ''.join(ch for ch in s if (ch.isalnum() or ch == ' '))
+
 def read_all_links(title, n, lang):
     if not check_continue(title, n):
         return
@@ -70,7 +74,7 @@ def read_all_links(title, n, lang):
     save_text(title, text, lang)
 
     global done
-    print(title)
+    logging.info(title + ' saved')
     done.append(title)
 
     np.random.shuffle(links)
@@ -84,7 +88,10 @@ def get_done_from_folder():
 if __name__ == '__main__':
     languages = ['en', 'sk', 'de', 'fr', 'it', 'cz', 'pl', 'hr', 'nl']
 
+    logging.basicConfig(level=20)
+
     for lang in languages:
+        logging.info('LANGUAGE: ' + lang)
         baseurl = 'http://' + lang + '.wikipedia.org/w/api.php'
         my_atts = attributes()
         if not os.path.exists('wiki_texts/'+lang):
@@ -93,5 +100,5 @@ if __name__ == '__main__':
         done = []
         broken = []
 
-        read_all_links('Albert Einstein', 10, lang) #Stack Overflow
+        read_all_links('Albert Einstein', 3, lang) #Stack Overflow
 
