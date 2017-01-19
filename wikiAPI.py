@@ -3,6 +3,9 @@ import os
 import numpy as np
 import logging
 
+languages = ['en', 'sk', 'de', 'fr', 'it', 'cz', 'pl', 'hr', 'nl']
+n_articles = 50
+
 class attributes(object):
     def __init__(self):
         self.atts = {}
@@ -86,7 +89,7 @@ def get_done_from_folder():
     return [file[:-4] for file in os.listdir('wiki_texts')]
 
 if __name__ == '__main__':
-    languages = ['en', 'sk', 'de', 'fr', 'it', 'cz', 'pl', 'hr', 'nl']
+
 
     logging.basicConfig(level=20)
 
@@ -100,5 +103,5 @@ if __name__ == '__main__':
         done = []
         broken = []
 
-        read_all_links('Albert Einstein', 3, lang) #Stack Overflow
+        read_all_links('Albert Einstein', n_articles, lang) #Stack Overflow
 
