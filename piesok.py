@@ -1,13 +1,13 @@
 from build_model import build_graph
 import numpy as np
 import tensorflow as tf
+import matplotlib.pyplot as plt
 
 
-skuska = build_graph('znova_2')
+skuska = build_graph('znova_10')
 
-skuska.data_shape(tf.float32, (3, 2), sequences=True)
-# skuska.embeddings(vocabulary_size=50, embedding_size=8)
-# skuska.out = tf.reshape(skuska.out, shape=(-1, skuska.current_shape[1] * skuska.current_shape[2], skuska.current_shape[3]))
+skuska.data_shape(tf.float32, (6,), sequences=True)
+skuska.embeddings(vocabulary_size=50, embedding_size=2)
 skuska.lstm(5)
 skuska.relu()
 skuska.lstm(2, output='last')
@@ -18,10 +18,10 @@ skuska.fc(1)
 skuska.finish()
 
 step = 0
-while step < 500:
-    x = np.random.randint(0,50, size=(5, 3, 2))
-    y = np.sum(np.sum(x, axis=-1), axis=-1).reshape((-1, 1))
-    seqlen = 3 * np.ones(5)
+while step < 30000:
+    x = np.random.randint(0,50, size=(5, 6))
+    y = np.sum(x, axis=-1).reshape((-1, 1))
+    seqlen = 6 * np.ones(5)
 
     loss, predict, global_step = skuska.step(x, y, sequence_lengths=seqlen)
     step += 1
@@ -32,6 +32,12 @@ while step < 500:
         print('predict', predict)
 skuska.save()
 a = np.array(
-    [[[1, 2], [3, 4], [5, 6]]])
+    [[1, 2, 3, 4, 5, 6]])
 print(skuska.predict(a, sequence_lengths=np.array([2])))
+
+emb = skuska.session.run(skuska.embeddings)
+print(emb)
+plt.plot(emb[:,0], emb[:,1], 'ro')
+plt.show()
+
 skuska.session.close()

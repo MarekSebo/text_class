@@ -73,7 +73,7 @@ class build_graph(object):
             if output == 'last':
                 self.out = self.out[:,-1]
 
-        self.current_shape = self.out.get_shape().aslist()
+        self.current_shape = self.out.get_shape().as_list()
         self.lstms += 1
 
     def relu(self):
@@ -88,7 +88,7 @@ class build_graph(object):
                                           initializer=tf.random_uniform_initializer(minval=0, maxval=None, seed=None, dtype=tf.float32),
                                           trainable = trainable)
         self.out = tf.nn.embedding_lookup(self.embeddings, tf.cast(self.out, tf.int32))
-        self.current_shape = self.out.get_shape().aslist()
+        self.current_shape = self.out.get_shape().as_list()
 
     def optimizer(self):
         return tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.9, beta2=0.999, epsilon=1e-08)\
