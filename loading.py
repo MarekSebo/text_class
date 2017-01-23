@@ -16,6 +16,124 @@ url = os.getcwd()
 # url = '/home/katarina/PycharmProjects/Ostruvky/data/'
 
 
+
+# read txt file as list of words
+def read_words(filename):
+    with tf.gfile.GFile(filename, "r") as f:
+        return f.read().decode("utf-8").replace("\n", "<eos>").split()
+
+
+# read all texts in all dirs, record where the files and dirs end
+def read_all_texts(train_path):
+    # output:
+    #   words = all words from all texts as a list
+    #   dictionaries {file_name: split} {label_name: split}
+    #       split = index of a first word of the file in the "words" list
+    words = []
+    file_names_list = []
+    splits_files_list = []
+    splits_labels_list = []
+
+    # v train su iba priecinky, v kazdom su txt subory v jednej class
+    label_names = os.listdir(train_path)
+
+    print("label_names =", label_names)
+    word_count = 0
+
+    for dir in label_names:
+        splits_labels_list.extend([word_count])
+        os.chdir(os.path.join(train_path, dir))
+        dir_files = os.listdir()
+        print("files in directory {} : {}".format(dir, dir_files) )
+        file_names_list.extend(dir_files)
+        for filename in dir_files:
+            splits_files_list.extend([word_count])
+            file_words = read_words(filename)
+            words.extend(file_words)
+            word_count += len(file_words)
+
+    '''
+    # !!!!! MOCK
+    words = ["prve", "slovo", "druhe", "slovo", "tretie", "slovo", "prve", "slovo", "znova"]
+    splits_labels_list = [0, 4] # aj nula tam bude
+    splits_files_list = [0, 2, 4, 7]
+    label_names = ['svahilsky', 'madarsky']
+    file_names_list = ['a', 'b', 'c', 'd']
+    '''
+    splits_labels = dict(zip(label_names, splits_labels_list))
+    splits_files = dict(zip(file_names_list, splits_files_list))
+    os.chdir(url) # change the dir back
+
+    return words, splits_labels, splits_files
+
+
+def dataset_to_integers(words, dictionary, count):
+    # input:
+    # words = all words in all texts
+    # output:
+    # words coded as integers, UNK = code 0
+    # count = counts, including the count of unknown words
+
+    words_new = list()
+    unk_count = 0
+
+    for i, word in words, range(len(words)):
+        if word in dictionary:
+            index = dictionary[word]
+        else:
+            index = 0  # dictionary['UNK']
+            unk_count += 1
+        words_new.append(index)
+
+    count_new = count
+    count_new[0][1] = unk_count
+
+    return words_new, count_new
+
+
+def integers_to_embeddings(integers):
+    """MOCK"""
+    embeddings = integers
+
+    return embeddings
+
+
+def final_dataset(self, words_new, splits_labels, splits_files):
+    # words_new = dataset as embeddings
+    # splits_labels, splits_files = dictionaries {name: split index}
+
+    # outputs:
+    # data = list of texts (lists of indices).  dims = [text_nr, word_nr]
+    # labels = list
+
+    # DOCASNE
+    splits_files = list(splits_files.values())
+    previous_index = 0
+    data = []
+    labels = []
+
+    for i in np.array(list(map(int(), list(range(len(splits_files) - 1))))) + 1:  # indexy 1 az koniec
+
+        words_file = words_new[splits_files[previous_index]:splits_files[i]]  # cut the words corresponding to this file
+        data.append(integers_to_embeddings(words_file))
+        labels += (splits_labels.values[i] - splits_labels.values[previous_index]) * splits_labels.keys[i]
+        previous_index = splits_files[i]
+
+    return data, labels
+
+
+all_texts, splits_class, splits_files = train.read_all_texts()
+count, dictionary, reverse_dictionary = build_dictionaries(all_texts)
+#
+data = dataset_to_integers(all_texts, dictionary)
+data = integers_to_embeddings(data, ...)
+data = final_dataset(data, ...)
+
+
+
+
+
+
 class DataClass(object):
     """
     POUZITIE
@@ -47,53 +165,6 @@ class DataClass(object):
 
         self.next_chunk()
 
-    # read txt file as list of words
-    def read_words(self, filename):
-        with tf.gfile.GFile(filename, "r") as f:
-            return f.read().decode("utf-8").replace("\n", "<eos>").split()
-
-    # read all texts in all dirs, record where the files and dirs end
-    def read_all_texts(self, train_path):
-        # TODO vytvor jeden dlhy text, pouzi load_filenames
-
-        # output:
-        #   all words from all texts as a list
-        #   dictionaries {file_name: split} {label_name: split}
-        words = []
-        file_names_list = []
-        splits_files_list = []
-        splits_labels_list = []
-
-        # v train su iba priecinky, v kazdom su txt subory v jednej class
-        label_names = os.listdir(train_path)
-        print("label_names =", label_names)
-        word_count = 0
-
-        for dir in label_names:
-            splits_labels_list.extend(word_count)
-            with os.path.join(train_path, dir) as path:
-                dir_files = os.listdir(path)
-                file_names_list.extend(dir_files)
-                for filename in dir_files:
-                    splits_files_list.extend(word_count)
-                    file_words = read_words(filename)
-                    words.extend(file_words)
-                    word_count += len(file_words)
-
-        '''
-        # !!!!! MOCK
-        words = ["prve", "slovo", "druhe", "slovo", "tretie", "slovo", "prve", "slovo", "znova"]
-        splits_labels_list = [0, 4] # aj nula tam bude
-        splits_files_list = [0, 2, 4, 7]
-        label_names = ['svahilsky', 'madarsky']
-        file_names_list = ['a', 'b', 'c', 'd']
-        '''
-        splits_labels = dict(zip(label_names, splits_labels_list))
-        splits_files = dict(zip(file_names_list, splits_files_list))
-
-        return words, splits_labels, splits_files
-
-
     def build_dictionaries(self, words):
         # words = the text as a list of words
 
@@ -106,58 +177,6 @@ class DataClass(object):
             dictionary[word] = len(dictionary)
         reverse_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
         return count, dictionary, reverse_dictionary
-
-
-    def dataset_to_integers(words, dictionary, count):
-        # input:
-            # words = all words in all texts
-        # output:
-            # words coded as integers, UNK = code 0
-            # count = counts, including the count of unknown words
-
-        words_new = list()
-        unk_count = 0
-
-        for i, word in words, range(len(words)):
-            if word in dictionary:
-                index = dictionary[word]
-            else:
-                index = 0  # dictionary['UNK']
-                unk_count += 1
-            words_new.append(index)
-
-        count_new = count
-        count_new[0][1] = unk_count
-
-        return words_new, count_new
-
-    def integers_to_embeddings(self, integers):
-        """MOCK"""
-        embeddings = integers
-
-        return embeddings
-
-
-    def build_dataset(self, words_new, splits_labels, splits_files):
-        # words_new = dataset as embeddings
-        # splits_labels, splits_files = dictionaries {name: split index}
-
-        # outputs:
-            # data = list of texts (lists of indices).  dims = [text_nr, word_nr]
-            # labels = list
-        data = []
-        labels = []
-        for label_name in splits_labels.keys:
-            labels.extend(label_name)
-            for file_name in splits_files.keys:
-                data.extend([words_new[] ])
-
-
-    all_texts, splits_class, splits_files = train.read_all_texts()
-    count, dictionary, reverse_dictionary = build_dictionaries(all_texts)
-    #
-    data = dataset_to_integers(all_texts, dictionary)
-
 
 
     def shuffle(self):
