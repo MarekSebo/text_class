@@ -3,8 +3,11 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
+graph_name = 'znova_11'
 
-skuska = build_graph('znova_10')
+skuska = build_graph(graph_name)
+
+
 
 skuska.data_shape(tf.float32, (6,), sequences=True)
 skuska.embeddings(vocabulary_size=50, embedding_size=2)
@@ -15,10 +18,10 @@ skuska.relu()
 skuska.fc(3)
 skuska.relu()
 skuska.fc(1)
-skuska.finish()
+exec(skuska.finish())
 
 step = 0
-while step < 30000:
+while step < 1000:
     x = np.random.randint(0,50, size=(5, 6))
     y = np.sum(x, axis=-1).reshape((-1, 1))
     seqlen = 6 * np.ones(5)

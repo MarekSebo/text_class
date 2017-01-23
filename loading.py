@@ -6,134 +6,6 @@ from numpy import random
 import tensorflow as tf
 import collections
 
-
-# najprv premenuj nazvy podpriecinkov na 1TestingSet a 1TrainingSet
-
-
-# -------------------------------------------------------
-# cesta k obrazkom
-url = os.getcwd()
-# url = '/home/katarina/PycharmProjects/Ostruvky/data/'
-
-
-
-# read txt file as list of words
-def read_words(filename):
-    with tf.gfile.GFile(filename, "r") as f:
-        return f.read().decode("utf-8").replace("\n", "<eos>").split()
-
-
-# read all texts in all dirs, record where the files and dirs end
-def read_all_texts(train_path):
-    # output:
-    #   words = all words from all texts as a list
-    #   dictionaries {file_name: split} {label_name: split}
-    #       split = index of a first word of the file in the "words" list
-    words = []
-    file_names_list = []
-    splits_files_list = []
-    splits_labels_list = []
-
-    # v train su iba priecinky, v kazdom su txt subory v jednej class
-    label_names = os.listdir(train_path)
-
-    print("label_names =", label_names)
-    word_count = 0
-
-    for dir in label_names:
-        splits_labels_list.extend([word_count])
-        os.chdir(os.path.join(train_path, dir))
-        dir_files = os.listdir()
-        print("files in directory {} : {}".format(dir, dir_files) )
-        file_names_list.extend(dir_files)
-        for filename in dir_files:
-            splits_files_list.extend([word_count])
-            file_words = read_words(filename)
-            words.extend(file_words)
-            word_count += len(file_words)
-
-    '''
-    # !!!!! MOCK
-    words = ["prve", "slovo", "druhe", "slovo", "tretie", "slovo", "prve", "slovo", "znova"]
-    splits_labels_list = [0, 4] # aj nula tam bude
-    splits_files_list = [0, 2, 4, 7]
-    label_names = ['svahilsky', 'madarsky']
-    file_names_list = ['a', 'b', 'c', 'd']
-    '''
-    splits_labels = dict(zip(label_names, splits_labels_list))
-    splits_files = dict(zip(file_names_list, splits_files_list))
-    os.chdir(url) # change the dir back
-
-    return words, splits_labels, splits_files
-
-
-def dataset_to_integers(words, dictionary, count):
-    # input:
-    # words = all words in all texts
-    # output:
-    # words coded as integers, UNK = code 0
-    # count = counts, including the count of unknown words
-
-    words_new = list()
-    unk_count = 0
-
-    for i, word in words, range(len(words)):
-        if word in dictionary:
-            index = dictionary[word]
-        else:
-            index = 0  # dictionary['UNK']
-            unk_count += 1
-        words_new.append(index)
-
-    count_new = count
-    count_new[0][1] = unk_count
-
-    return words_new, count_new
-
-
-def integers_to_embeddings(integers):
-    """MOCK"""
-    embeddings = integers
-
-    return embeddings
-
-
-def final_dataset(self, words_new, splits_labels, splits_files):
-    # words_new = dataset as embeddings
-    # splits_labels, splits_files = dictionaries {name: split index}
-
-    # outputs:
-    # data = list of texts (lists of indices).  dims = [text_nr, word_nr]
-    # labels = list
-
-    # DOCASNE
-    splits_files = list(splits_files.values())
-    previous_index = 0
-    data = []
-    labels = []
-
-    for i in np.array(list(map(int(), list(range(len(splits_files) - 1))))) + 1:  # indexy 1 az koniec
-
-        words_file = words_new[splits_files[previous_index]:splits_files[i]]  # cut the words corresponding to this file
-        data.append(integers_to_embeddings(words_file))
-        labels += (splits_labels.values[i] - splits_labels.values[previous_index]) * splits_labels.keys[i]
-        previous_index = splits_files[i]
-
-    return data, labels
-
-
-all_texts, splits_class, splits_files = train.read_all_texts()
-count, dictionary, reverse_dictionary = build_dictionaries(all_texts)
-#
-data = dataset_to_integers(all_texts, dictionary)
-data = integers_to_embeddings(data, ...)
-data = final_dataset(data, ...)
-
-
-
-
-
-
 class DataClass(object):
     """
     POUZITIE
@@ -145,7 +17,7 @@ class DataClass(object):
     -ked sa minie chunk (dojde sa na koniec), nacita sa novy chunk
     -ked sa minu chunky, premiesaju sa data a zacne sa znova
     """
-    def __init__(self, path, batch_size, chunk_size, vocabulary_size, data_use="train"):
+    def __init__(self, url, path, batch_size, vocabulary_size, data_use="train"):
         self.data = None
         self.labels = None
 
@@ -153,93 +25,22 @@ class DataClass(object):
         self.vocabulary_size = vocabulary_size
         self.data_use = data_use
 
-        self.file_names = self.load_filenames()
+        _, self.dictionary, self.reverse_dictionary = DataClass.build_dictionaries(vocabulary_size, os.path.join(url, path), url)
+        self.data, self.labels, _ = self.final_data(os.getcwd(), self.dictionary, url)
 
-        self.total_data_size = len(self.file_names)
-
+        self.total_data_size = len(self.labels)
         self.batch_size = batch_size
         self.batch_cursor = 0              # pozicia batchu vramci chunku
 
-        self.chunk_size = chunk_size        # (chunk_size // batch_size) * batch_size
-        self.chunk_cursor = 0           # pozicia chunku vramci datasetu
-
-        self.next_chunk()
-
-    def build_dictionaries(self, words):
-        # words = the text as a list of words
-
-        # produce a list of [word, count] for the most common words
-        count = [['UNK', -1]]
-        count.extend(collections.Counter(words).most_common(self.vocabulary_size - 1))
-        # make a dict of [word: index]
-        dictionary = dict()
-        for word, _ in count:
-            dictionary[word] = len(dictionary)
-        reverse_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
-        return count, dictionary, reverse_dictionary
-
-
-    def shuffle(self):
-        if self.data_use == "train":
-            random.shuffle(self.file_names)
-
-    def load_chunk(self):
-
-        chunk_imgs = []
-        chunk_labels = []
-
-        for img, lab in self.file_names[self.chunk_cursor:self.chunk_cursor + self.chunk_size]:
-            im1 = pilimg.open(os.path.join(self.path, img))
-            im1 = np.array(im1).astype(float) / 255
-
-            im2 = pilimg.open(os.path.join(self.path, lab))
-            im2_pil = im2
-            im2 = im2.convert('L')
-            im2 = np.array(im2).astype(float) / 255
-
-            if self.data_use == 'train':
-                im1, im2 = random_flip(im1, im2)
-
-            if self.augm != 0:
-                coin = random.randint(0, 1)
-
-                if coin == 1:
-                    seed_num = random.randint(1, 999)
-                    shear_ran = 0.7
-                    num_out_im = self.augm
-                    im1, im2 = augment(im1, im2_pil, shear_ran, seed_num, num_out_im)
-                    im2 = np.reshape(im2, [1536, 2048, 3])
-                    # chunk_imgs.append(im_new)
-                    # chunk_labels.append(lab_new)
-
-            chunk_imgs.append(im1)
-            chunk_labels.append(im2)
-
-        self.chunk_cursor = (self.chunk_cursor + self.chunk_size)
-
-        self.current_chunk_size = len(chunk_imgs)
-
-        # docasne riesenie
-        if self.chunk_cursor + self.chunk_size > self.total_data_size:
-            # print('last chunk of the epoch')
-            self.chunk_cursor = 0
-            self.shuffle()
-
-        return np.array(chunk_imgs), np.array(chunk_labels)
-
-    def next_chunk(self):
-        # print('Getting new chunk')
-        self.data, self.labels = self.load_chunk()
-         # print('Got it')
+        self.maxlen = max([len(i) for i in self.data])
 
     def next_batch(self):
         data = self.data[self.batch_cursor:self.batch_cursor + self.batch_size]
         labels = self.labels[self.batch_cursor:self.batch_cursor + self.batch_size]
 
         self.batch_cursor += self.batch_size
-        if self.batch_cursor + self.batch_size > self.current_chunk_size:
+        if self.batch_cursor + self.batch_size > self.total_data_size:
             self.batch_cursor = 0
-            self.next_chunk()
 
         # ak z nejakeho dovodu nie je dost dat do  batchu (napr. malo suborov) tak to sposobi errory
         # tiez len docasne riesenie
@@ -248,6 +49,102 @@ class DataClass(object):
 
         return data, labels
 
+    @staticmethod
+    def read_words(filename):
+        with tf.gfile.GFile(filename, "r") as f:
+            return f.read().decode("utf-8").replace("\n", "<eos>").split()
+
+    # read all texts in all dirs, record where the files and dirs end
+
+    @staticmethod
+    def read_all_texts(train_path, url):
+        # output:
+        #   words = all words from all texts as a list
+
+        words = []
+
+        # v train su iba priecinky, v kazdom su txt subory v jednej class
+        label_names = os.listdir(train_path)
+        label_names.sort()
+
+        print("label_names =", label_names)
+        word_count = 0
+
+        for dir in label_names:
+            os.chdir(os.path.join(train_path, dir))
+            dir_files = os.listdir()
+            dir_files.sort()
+            print("files in directory {} : {}".format(dir, dir_files))
+            for filename in dir_files:
+                file_words = DataClass.read_words(filename)
+                words.extend(file_words)
+                word_count += len(file_words)
+        os.chdir(os.path.join(url, train_path))  # change the dir back
+
+        return words
+
+    @staticmethod
+    def build_dictionaries(vocabulary_size, path, url):
+        # output:
+        #   count = list of [word, count] for the words in vocabulary
+        #   dictionary = <word>:<integer>
+        #   reverse_dictionary = <integer>:<word>
+        all_words = DataClass.read_all_texts(path, url)
+        count = [['UNK', -1]]
+        count.extend(collections.Counter(all_words).most_common(vocabulary_size - 1))
+        # make a dict of [word: index]
+        dictionary = dict()
+        for word, _ in count:
+            dictionary[word] = len(dictionary)
+        reverse_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
+        return count, dictionary, reverse_dictionary
+
+    @staticmethod
+    def words_to_integers(words, dictionary):
+        # input:
+        #   words = words in the text (as list)
+        # output:
+        #   words coded as integers, UNK = code 0
+        #   unk_count = count of unknown words
+
+        words_new = list()
+        unk_count = 0
+
+        for i, word in enumerate(words):
+
+            if word in dictionary:
+                index = dictionary[word]
+            else:
+                index = 0  # dictionary['UNK']
+                unk_count += 1
+            words_new.append(index)
+        return words_new, unk_count
+
+    @staticmethod
+    def final_data(train_path, dictionary, url):
+        # v train su iba priecinky, v kazdom su txt subory v jednej class
+        print("finaldata_begin dir: ", os.getcwd())
+        label_names = os.listdir()
+        label_names.sort()
+        unk_count = 0  # count of unknown words
+        data = []
+        labels = []
+
+        for dir in label_names:
+            os.chdir(os.path.join(train_path, dir))  # enter the class dir
+            dir_files = os.listdir()
+            dir_files.sort()
+            len_label = len(dir_files)  # count of files of the class
+            labels += [str(dir)] * len_label
+
+            for filename in dir_files:
+                file_words = DataClass.read_words(filename)
+                integers, unk_in_file = DataClass.words_to_integers(file_words, dictionary)
+                unk_count += unk_in_file
+                data.append(integers)
+
+        os.chdir(os.path.join(url))  # change the dir back
+        return data, labels, unk_count
 
 
 def accuracy2(predictions, labels, printout = True):
