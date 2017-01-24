@@ -34,20 +34,49 @@ class DataClass(object):
 
         self.maxlen = max([len(i) for i in self.data])
 
+        self.languages = ['en', 'sk', 'de', 'fr', 'it', 'cz', 'pl', 'hr', 'nl']
+        self.shuffle()
+
     def next_batch(self):
         data = self.data[self.batch_cursor:self.batch_cursor + self.batch_size]
         labels = self.labels[self.batch_cursor:self.batch_cursor + self.batch_size]
+        labels = np.array([DataClass.onehot(label, self.languages) for label in labels])
 
         self.batch_cursor += self.batch_size
         if self.batch_cursor + self.batch_size > self.total_data_size:
+            self.shuffle()
             self.batch_cursor = 0
 
-        # ak z nejakeho dovodu nie je dost dat do  batchu (napr. malo suborov) tak to sposobi errory
-        # tiez len docasne riesenie
         if len(labels) < self.batch_size:
             self.next_batch()
 
-        return data, labels
+        seq_len = random.randint(1, 25, size=labels[:,0].shape)
+        beginnings = [random.randint(0, len(d)) for d in data]
+
+        print('beg',beginnings)
+        print('s', seq_len)
+
+        # seq_len = np.array([len(i) for i in data])
+        maxout = np.max(seq_len)
+        print('maxout', maxout)
+        #toto treba riesit
+        data = ([np.pad(d[np.max(b-s, 0) : b], [(0, maxout - s)], mode='constant') for d,s,b in zip(data, seq_len, beginnings)])
+        print('data', data)
+        print('seq', seq_len)
+
+        return data, labels, seq_len
+
+    def shuffle(self):
+        combined = list(zip(self.data, self.labels))
+        random.shuffle(combined)
+
+        self.data[:], self.labels[:] = zip(*combined)
+
+    @staticmethod
+    def onehot(y, alphabet):
+        result = np.zeros(len(alphabet))
+        result[alphabet.index(y)] = 1
+        return result
 
     @staticmethod
     def read_words(filename):
@@ -226,3 +255,4 @@ def draw_prediction(pred, real, h, w):
         # seda - oranzova
         img = img.point(table)
         img.save('predictions/im{}_C_combo.png'.format(i))
+

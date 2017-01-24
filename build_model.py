@@ -80,7 +80,7 @@ class build_graph(object):
         self.out = tf.nn.relu(self.out)
 
     def loss(self):
-        return tf.reduce_mean(tf.square(self.out - self.labels))
+        return tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.out, self.labels))
 
     def embeddings(self, vocabulary_size, embedding_size, trainable=True):
         self.embeddings = tf.get_variable('embedding',
@@ -130,7 +130,7 @@ class build_graph(object):
             self.seq_len = tf.placeholder(tf.int32, shape=[None])
 
     def finish(self):
-        self.prediction = self.out
+        self.prediction = tf.nn.softmax(self.out)
         self.labels = tf.placeholder(self.out.dtype, self.out.get_shape())
 
         self.loss_op = self.loss()
@@ -150,8 +150,7 @@ class build_graph(object):
             logging.exception('File not found, initializing new model')
             self.session.run(tf.global_variables_initializer())
 
-    def accuracy(self, pred, real):
-        return 0
-
-
-
+def accuracy(predictions, labels):
+    acc = np.sum([(labels[i, np.argmax(predictions[i, :])] == 1) for i in range(predictions.shape[0])]) \
+          / predictions.shape[0]
+    return acc
