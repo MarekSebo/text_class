@@ -51,18 +51,12 @@ class DataClass(object):
             self.next_batch()
 
         seq_len = random.randint(1, 25, size=labels[:,0].shape)
-        beginnings = [random.randint(0, len(d)) for d in data]
-
-        print('beg',beginnings)
-        print('s', seq_len)
+        beginnings = [random.randint(0, len(d) - s) for d, s in zip(data, seq_len)]
 
         # seq_len = np.array([len(i) for i in data])
         maxout = np.max(seq_len)
-        print('maxout', maxout)
         #toto treba riesit
-        data = ([np.pad(d[np.max(b-s, 0) : b], [(0, maxout - s)], mode='constant') for d,s,b in zip(data, seq_len, beginnings)])
-        print('data', data)
-        print('seq', seq_len)
+        data = np.array(([np.pad(d[b : b + s], [(0, maxout - s)], mode='constant') for d,s,b in zip(data, seq_len, beginnings)]))
 
         return data, labels, seq_len
 
