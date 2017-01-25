@@ -72,7 +72,6 @@ class build_graph(object):
             if output == 'last':
                 self.out = tf.reverse_sequence(self.out, self.seq_len, 1, batch_dim=0, name='rev_seq')
                 self.out = self.out[:, 0, :]
-                self.check = self.out
 
         self.current_shape = self.out.get_shape().as_list()
         self.lstms += 1
