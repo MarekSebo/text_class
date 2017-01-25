@@ -12,9 +12,8 @@ class build_graph(object):
         self.bias = {}
         self.lstm_cells = []
         self.lstms = 0
-        self.steps = 0
         self.session_name = name
-        self.learning_rate = 0.01
+        self.learning_rate = 0.0001
 
     def conv2d(self, filter, num_filters, strides, padding):
         self.weights['conv_weights_{}'.format(self.w)] = tf.get_variable(
@@ -71,7 +70,9 @@ class build_graph(object):
                 cell=self.lstm_cells[-1], inputs=self.out, dtype=tf.float32, sequence_length=self.seq_len)
 
             if output == 'last':
+                print('lstm out', self.out.get_shape().as_list())
                 self.out = self.out[:,-1]
+                print('lstm out', self.out.get_shape().as_list())
 
         self.current_shape = self.out.get_shape().as_list()
         self.lstms += 1
@@ -103,8 +104,8 @@ class build_graph(object):
         loss, _, predict, summary, step = self.session.run(
             [self.loss_op, self.optimizer_op, self.prediction, self.tb_loss_train, self.global_step], feed_dict=feed)
 
-        self.steps += 1
-        self.file_writer.add_summary(summary, global_step=self.steps)
+        # self.steps += 1
+        self.file_writer.add_summary(summary, global_step=step)
 
         return loss, predict, step
 

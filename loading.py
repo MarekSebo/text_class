@@ -28,13 +28,15 @@ class DataClass(object):
         _, self.dictionary, self.reverse_dictionary = DataClass.build_dictionaries(vocabulary_size, os.path.join(url, path), url)
         self.data, self.labels, _ = self.final_data(os.getcwd(), self.dictionary, url)
 
+        print([self.reverse_dictionary[i] for i in range(200)])
+
         self.total_data_size = len(self.labels)
         self.batch_size = batch_size
         self.batch_cursor = 0              # pozicia batchu vramci chunku
 
         self.maxlen = max([len(i) for i in self.data])
 
-        self.languages = ['en', 'sk', 'de', 'fr', 'it', 'cz', 'pl', 'hr', 'nl']
+        self.languages = ['en', 'cz']
         self.shuffle()
 
     def next_batch(self):
@@ -50,12 +52,11 @@ class DataClass(object):
         if len(labels) < self.batch_size:
             self.next_batch()
 
-        seq_len = random.randint(1, 25, size=labels[:,0].shape)
+        seq_len = [random.randint(1, min(25, len(d))) for d in data]
         beginnings = [random.randint(0, len(d) - s) for d, s in zip(data, seq_len)]
 
         # seq_len = np.array([len(i) for i in data])
         maxout = np.max(seq_len)
-        #toto treba riesit
         data = np.array(([np.pad(d[b : b + s], [(0, maxout - s)], mode='constant') for d,s,b in zip(data, seq_len, beginnings)]))
 
         return data, labels, seq_len
@@ -129,6 +130,7 @@ class DataClass(object):
         # output:
         #   words coded as integers, UNK = code 0
         #   unk_count = count of unknown words
+        #   word_count = total pocet slov v texte
 
         words_new = list()
         unk_count = 0
@@ -141,7 +143,8 @@ class DataClass(object):
                 index = 0  # dictionary['UNK']
                 unk_count += 1
             words_new.append(index)
-        return words_new, unk_count
+            total_count = len(words_new)
+        return words_new, unk_count, total_count
 
     @staticmethod
     def final_data(train_path, dictionary, url):
@@ -159,13 +162,16 @@ class DataClass(object):
             dir_files.sort()
             len_label = len(dir_files)  # count of files of the class
             labels += [str(dir)] * len_label
-
+            unk_count = 0
+            total_count = 0
             for filename in dir_files:
                 file_words = DataClass.read_words(filename)
-                integers, unk_in_file = DataClass.words_to_integers(file_words, dictionary)
+                integers, unk_in_file, total_count_in_file = DataClass.words_to_integers(file_words, dictionary)
                 unk_count += unk_in_file
+                total_count += total_count_in_file
                 data.append(integers)
-
+            print("Total words in the language in the training set: ", total_count)
+            print( "UNK in language {} : {} %".format(dir, unk_count / total_count * 100 ))
         os.chdir(os.path.join(url))  # change the dir back
         return data, labels, unk_count
 
