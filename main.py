@@ -8,6 +8,7 @@ from build_model import build_graph, accuracy
 url = os.getcwd()
 vocabulary_size = 20000
 batch_size = 16
+learning_rate = 0.0001
 
 datka = DataClass(os.getcwd(), 'wiki_texts', batch_size, vocabulary_size, data_use="train")
 
@@ -23,7 +24,7 @@ skuska.relu()
 skuska.fc(64)
 skuska.relu()
 skuska.fc(2)
-skuska.finish()
+skuska.finish(learning_rate)
 
 step = 0
 while step < 5000:
