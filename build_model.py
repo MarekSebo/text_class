@@ -16,6 +16,11 @@ class build_graph(object):
         self.learning_rate = 0.0001
 
     def conv2d(self, filter, num_filters, strides, padding):
+        # define conv layer (init weights + graph)
+        # inputs:
+        #   filter = kernel size
+        #   padding = {'SAME', 'VALID'}
+
         self.weights['conv_weights_{}'.format(self.w)] = tf.get_variable(
                             'conv_weights_{}'.format(self.convs),
                             shape=(filter[0], filter[1], self.current_shape[-1], num_filters),
@@ -63,6 +68,9 @@ class build_graph(object):
         self.w += 1
 
     def lstm(self, lstm_size, output = 'all'):
+        # build one LSTM layer
+        # input:
+        #   output = {'all' , 'last'}
         with tf.variable_scope('lstm_{}'.format(self.lstms)):
             self.lstm_cells.append(tf.nn.rnn_cell.BasicLSTMCell(lstm_size))
 
@@ -81,9 +89,11 @@ class build_graph(object):
         self.out = tf.nn.relu(self.out)
 
     def loss(self):
+        # cross entropy
         return tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.out, self.labels))
 
     def embeddings(self, vocabulary_size, embedding_size, trainable=True):
+        # same inputs as in TF
         self.embeddings = tf.get_variable('embedding',
                                           shape=[vocabulary_size, embedding_size],
                                           initializer=tf.random_uniform_initializer(minval=0, maxval=None, seed=None, dtype=tf.float32),
@@ -91,11 +101,12 @@ class build_graph(object):
         self.out = tf.nn.embedding_lookup(self.embeddings, tf.cast(self.out, tf.int32))
         self.current_shape = self.out.get_shape().as_list()
 
-    def optimizer(self):
-        return tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.9, beta2=0.999, epsilon=1e-08)\
+    def optimizer(self, learning_rate):
+        return tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=0.9, beta2=0.999, epsilon=1e-08)\
             .minimize(self.loss_op, global_step=self.global_step)
 
     def step(self, x, y, sequence_lengths = None):
+        # make one step
         feed={self.input: x, self.labels: y}
 
         if sequence_lengths is not None:
@@ -107,8 +118,8 @@ class build_graph(object):
         # self.steps += 1
         self.file_writer.add_summary(summary, global_step=step)
 
-
         return loss, predict, step
+
 
     def save(self):
         self.saver.save(self.session, "{}/logs/{}/{}.ckpt".format(os.getcwd(), self.session_name, self.session_name),
@@ -123,6 +134,11 @@ class build_graph(object):
         return self.session.run(self.prediction, feed_dict=feed)
 
     def data_shape(self, type, shape, sequences=False):
+        # run this before the first layer
+        # inputs:
+        #   shape = shape bez batch size dimenzie
+        #   type = typ premennej , napr tf.float32
+        #   sequences = bool, if I want to remember the lengths of the sequences in data (e.g in texts with variable length)
         self.current_shape = shape
         self.input = tf.placeholder(type, shape=(None, ) + shape)
         self.global_step = tf.Variable(0, name='global_step')
@@ -131,12 +147,13 @@ class build_graph(object):
         if sequences:
             self.seq_len = tf.placeholder(tf.int32, shape=[None])
 
-    def finish(self):
+    def finish(self, learning_rate):
+        # defines loss etc....
         self.prediction = tf.nn.softmax(self.out)
         self.labels = tf.placeholder(self.out.dtype, self.out.get_shape())
 
         self.loss_op = self.loss()
-        self.optimizer_op = self.optimizer()
+        self.optimizer_op = self.optimizer(learning_rate)
 
         self.tb_loss_train = tf.summary.scalar('loss_function_batch', self.loss_op)
         self.tb_loss_valid = tf.summary.scalar('loss_function_valid', self.loss_op)

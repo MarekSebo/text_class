@@ -4,7 +4,7 @@ import numpy as np
 import logging
 
 languages = ['en', 'sk', 'de', 'fr', 'it', 'cz', 'pl', 'hr', 'nl']
-n_articles = 50
+n_articles = 200
 
 class attributes(object):
     def __init__(self):
