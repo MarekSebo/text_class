@@ -70,9 +70,9 @@ class build_graph(object):
                 cell=self.lstm_cells[-1], inputs=self.out, dtype=tf.float32, sequence_length=self.seq_len)
 
             if output == 'last':
-                print('lstm out', self.out.get_shape().as_list())
-                self.out = self.out[:,-1]
-                print('lstm out', self.out.get_shape().as_list())
+                self.out = tf.reverse_sequence(self.out, self.seq_len, 1, batch_dim=0, name='rev_seq')
+                self.out = self.out[:, 0, :]
+                self.check = self.out
 
         self.current_shape = self.out.get_shape().as_list()
         self.lstms += 1
@@ -106,6 +106,7 @@ class build_graph(object):
 
         # self.steps += 1
         self.file_writer.add_summary(summary, global_step=step)
+
 
         return loss, predict, step
 

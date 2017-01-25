@@ -11,7 +11,7 @@ batch_size = 16
 
 datka = DataClass(os.getcwd(), 'wiki_texts', batch_size, vocabulary_size, data_use="train")
 
-skuska = build_graph('2lang_1')
+skuska = build_graph('2lang_2')
 skuska.data_shape(tf.int32, (None,), sequences=True)
 skuska.embeddings(vocabulary_size=vocabulary_size, embedding_size=16)
 skuska.lstm(128)

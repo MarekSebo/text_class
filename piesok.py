@@ -3,6 +3,14 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
+
+a = np.random.randint(0, 10, (2, 5))
+print(a)
+b = np.array([1, 2])
+print(a[:, b])
+
+
+
 graph_name = 'znova_11'
 
 skuska = build_graph(graph_name)
@@ -19,6 +27,8 @@ skuska.fc(3)
 skuska.relu()
 skuska.fc(1)
 exec(skuska.finish())
+
+
 
 step = 0
 while step < 1000:
