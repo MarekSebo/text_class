@@ -4,7 +4,9 @@ import numpy as np
 import logging
 
 languages = ['en', 'sk', 'de', 'fr', 'it', 'cz', 'pl', 'hr', 'nl']
-n_articles = 200
+starting_article = 'Donald Trump'
+n_articles = 10
+folder_name = 'valid'
 
 class attributes(object):
     def __init__(self):
@@ -56,8 +58,8 @@ def get_article_data(title):
 
     return text, links
 
-def save_text(title, text, lang):
-    with open('wiki_texts/' + lang + '/' + title.replace('/', '') + '.txt', 'w') as file:
+def save_text(dir_name, title, text, lang):
+    with open(dir_name + '/' + lang + '/' + title.replace('/', '') + '.txt', 'w') as file:
         file.write(text)
 
 def check_continue(title, n):
@@ -74,7 +76,7 @@ def read_all_links(title, n, lang):
     if text == '' or text == None:
         broken.append(title)
         return
-    save_text(title, text, lang)
+    save_text(folder_name, title, text, lang)
 
     global done
     logging.info(title + ' saved')
@@ -85,8 +87,8 @@ def read_all_links(title, n, lang):
     for l in links:
         read_all_links(l, n, lang)
 
-def get_done_from_folder():
-    return [file[:-4] for file in os.listdir('wiki_texts')]
+def get_done_from_folder(dir_name):
+    return [file[:-4] for file in os.listdir(dir_name)]
 
 if __name__ == '__main__':
 
@@ -97,11 +99,11 @@ if __name__ == '__main__':
         logging.info('LANGUAGE: ' + lang)
         baseurl = 'http://' + lang + '.wikipedia.org/w/api.php'
         my_atts = attributes()
-        if not os.path.exists('wiki_texts/'+lang):
-            os.makedirs('wiki_texts/'+lang)
+        if not os.path.exists(folder_name + '/'+lang):
+            os.makedirs(folder_name + '/'+lang)
 
         done = []
         broken = []
 
-        read_all_links('Albert Einstein', n_articles, lang) #Stack Overflow
+        read_all_links(starting_article, n_articles, lang) #Stack Overflow
 
