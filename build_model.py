@@ -4,6 +4,7 @@ import numpy as np
 import logging
 import os
 
+
 class build_graph(object):
     def __init__(self, name):
         self.current_shape = None
@@ -49,6 +50,8 @@ class build_graph(object):
         self.out = tf.reshape(self.out, [-1, np.prod(self.current_shape[1:])])
         self.current_shape = self.out.get_shape()
 
+        print('pred_fc', self.out.get_shape().as_list())
+
         self.weights['fc_weights_{}'.format(self.w)] = tf.get_variable(
             'fc_weights_{}'.format(self.w),
             shape=(self.current_shape[-1], layer_size),
@@ -72,14 +75,19 @@ class build_graph(object):
         # input:
         #   output = {'all' , 'last'}
         with tf.variable_scope('lstm_{}'.format(self.lstms)):
+            self.c_state = tf.placeholder(dtype=tf.float32, shape=(None, lstm_size))
+            self.h_state = tf.placeholder(dtype=tf.float32, shape=(None, lstm_size))
+            initial_state = tf.nn.rnn_cell.LSTMStateTuple(self.c_state, self.h_state)
+
             self.lstm_cells.append(tf.nn.rnn_cell.BasicLSTMCell(lstm_size))
+            print(self.lstm_cells[-1].state_size)
 
             self.out, self.state_lstm = tf.nn.dynamic_rnn(
-                cell=self.lstm_cells[-1], inputs=self.out, dtype=tf.float32, sequence_length=self.seq_len)
+                cell=self.lstm_cells[-1], inputs=self.out, dtype=tf.float32, initial_state=initial_state)
 
             if output == 'last':
-                self.out = tf.reverse_sequence(self.out, self.seq_len, 1, batch_dim=0, name='rev_seq')
-                self.out = self.out[:, 0, :]
+                self.out = self.out[:, -1, :]
+        print('lstm', self.out.get_shape().as_list())
 
         self.current_shape = self.out.get_shape().as_list()
         self.lstms += 1
@@ -89,12 +97,13 @@ class build_graph(object):
 
     def loss(self):
         # cross entropy
-        return tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.out, self.labels))
+        return tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.out, self.one_hots))
 
     def embeddings(self, vocabulary_size, embedding_size, trainable=True):
         # same inputs as in TF
+        self.vocabulary_size = vocabulary_size
         self.embeddings = tf.get_variable('embedding',
-                                          shape=[vocabulary_size, embedding_size],
+                                          shape=[self.vocabulary_size, embedding_size],
                                           initializer=tf.random_uniform_initializer(minval=0, maxval=None, seed=None, dtype=tf.float32),
                                           trainable = trainable)
         self.out = tf.nn.embedding_lookup(self.embeddings, tf.cast(self.out, tf.int32))
@@ -104,33 +113,42 @@ class build_graph(object):
         return tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=0.9, beta2=0.999, epsilon=1e-08)\
             .minimize(self.loss_op, global_step=self.global_step)
 
-    def step(self, x, y, sequence_lengths = None):
+    def step(self, x, y, sequence_lengths = None, lstm_state = None):
         # make one step
         feed={self.input: x, self.labels: y}
 
         if sequence_lengths is not None:
             feed[self.seq_len] = sequence_lengths
 
-        loss, _, predict, summary, step = self.session.run(
-            [self.loss_op, self.optimizer_op, self.prediction, self.tb_loss_train, self.global_step], feed_dict=feed)
+        if lstm_state is not None:
+            feed[self.c_state], feed[self.h_state] = lstm_state
+
+        loss, _, predict, summary, step, state_lstm = self.session.run(
+            [self.loss_op, self.optimizer_op, self.prediction, self.tb_loss_train, self.global_step, self.state_lstm], feed_dict=feed)
 
         # self.steps += 1
         self.file_writer.add_summary(summary, global_step=step)
 
-        return loss, predict, step
+        return loss, predict, step, state_lstm
 
 
     def save(self):
         self.saver.save(self.session, "{}/logs/{}/{}.ckpt".format(os.getcwd(), self.session_name, self.session_name),
                         global_step=self.global_step)
 
-    def predict(self, x, sequence_lengths = None):
+    def predict(self, x, sequence_lengths = None, lstm_state = None):
         feed = {self.input: x}
 
-        if sequence_lengths:
+        if sequence_lengths is not None:
             feed[self.seq_len] = sequence_lengths
 
-        return self.session.run(self.prediction, feed_dict=feed)
+        if lstm_state is not None:
+            feed[self.c_state], feed[self.h_state] = lstm_state
+
+
+        print(feed)
+
+        return self.session.run([self.prediction, self.state_lstm], feed_dict=feed)
 
     def data_shape(self, type, shape, sequences=False):
         # run this before the first layer
@@ -149,7 +167,8 @@ class build_graph(object):
     def finish(self, learning_rate):
         # defines loss etc....
         self.prediction = tf.nn.softmax(self.out)
-        self.labels = tf.placeholder(self.out.dtype, self.out.get_shape())
+        self.labels = tf.placeholder(tf.int64, shape=(None,), name='labels')
+        self.one_hots = tf.one_hot(self.labels, self.vocabulary_size)
 
         self.loss_op = self.loss()
         self.optimizer_op = self.optimizer(learning_rate)
@@ -172,3 +191,15 @@ def accuracy(predictions, labels):
     acc = np.sum([(labels[i, np.argmax(predictions[i, :])] == 1) for i in range(predictions.shape[0])]) \
           / predictions.shape[0]
     return acc
+
+def sample_distribution(distribution):
+    """Sample one element from a distribution assumed to be an array of normalized
+    probabilities.
+    """
+    r = np.random.uniform(0, 1)
+    s = 0
+    for i in range(len(distribution)):
+        s += distribution[i]
+        if s >= r:
+            return i
+    return len(distribution) - 1

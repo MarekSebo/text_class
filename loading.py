@@ -28,6 +28,9 @@ class DataClass(object):
         _, self.dictionary, self.reverse_dictionary = DataClass.build_dictionaries(vocabulary_size, os.path.join(url, path), url)
         self.data, self.labels, _ = self.final_data(os.getcwd(), self.dictionary, url)
 
+        self.put_into_batches(50)
+        self.generating_text_data_format()
+
         print([self.reverse_dictionary[i] for i in range(200)])
 
         self.total_data_size = len(self.labels)
@@ -36,13 +39,12 @@ class DataClass(object):
 
         self.maxlen = max([len(i) for i in self.data])
 
-        self.languages = ['en', 'cz']
+        self.languages = ['sk']
         self.shuffle()
 
     def next_batch(self):
         data = self.data[self.batch_cursor:self.batch_cursor + self.batch_size]
         labels = self.labels[self.batch_cursor:self.batch_cursor + self.batch_size]
-        labels = np.array([DataClass.onehot(label, self.languages) for label in labels])
 
         self.batch_cursor += self.batch_size
         if self.batch_cursor + self.batch_size > self.total_data_size:
@@ -52,20 +54,28 @@ class DataClass(object):
         if len(labels) < self.batch_size:
             self.next_batch()
 
-        seq_len = [random.randint(1, min(25, len(d))) for d in data]
-        beginnings = [random.randint(0, len(d) - s) for d, s in zip(data, seq_len)]
-
-        # seq_len = np.array([len(i) for i in data])
-        maxout = np.max(seq_len)
-        data = np.array(([np.pad(d[b : b + s], [(0, maxout - s)], mode='constant') for d,s,b in zip(data, seq_len, beginnings)]))
-
-        return data, labels, seq_len
+        return data, labels
 
     def shuffle(self):
         combined = list(zip(self.data, self.labels))
         random.shuffle(combined)
 
         self.data[:], self.labels[:] = zip(*combined)
+
+    def put_into_batches(self, n):
+        data = []
+        for article in self.data:
+            data += article[:DataClass.max_len_divisible_n(len(article), n)]
+        data = np.array(data).reshape(-1, n)
+        self.data = data
+
+    def generating_text_data_format(self):
+        self.labels = self.data[:, 1:]
+        self.data = self.data[:, :-1]
+
+    @staticmethod
+    def max_len_divisible_n(k, n):
+        return (k // n) * n
 
     @staticmethod
     def onehot(y, alphabet):
@@ -77,8 +87,6 @@ class DataClass(object):
     def read_words(filename):
         with tf.gfile.GFile(filename, "r") as f:
             return f.read().decode("utf-8").replace("\n", "<eos>").split()
-
-    # read all texts in all dirs, record where the files and dirs end
 
     @staticmethod
     def read_all_texts(train_path, url):
@@ -174,85 +182,3 @@ class DataClass(object):
             print( "UNK in language {} : {} %".format(dir, unk_count / total_count * 100 ))
         os.chdir(os.path.join(url))  # change the dir back
         return data, labels, unk_count
-
-
-def accuracy2(predictions, labels, printout = True):
-    conf_matrix = np.zeros((2, 2))
-    # true positive
-    predictions = np.round(predictions).astype(bool)
-    labels = np.array(labels).astype(bool)
-    conf_matrix[0, 0] = np.sum(np.logical_and(predictions, labels))
-    conf_matrix[1, 0] = np.sum(np.logical_and(predictions, np.logical_not(labels)))
-    conf_matrix[0, 1] = np.sum(np.logical_and(np.logical_not(predictions), labels))
-    conf_matrix[1, 1] = np.sum(np.logical_and(np.logical_not(predictions), np.logical_not(labels)))
-    log = []
-    hitrate = 'no real positives in sample'
-    if sum(conf_matrix[0, :]):
-        hitrate = conf_matrix[0, 0] / sum(conf_matrix[0, :]) * 100
-    precision = 0
-    f1_score = 'not available'
-    if sum(conf_matrix[:, 0]):
-        precision = conf_matrix[0, 0] / sum(conf_matrix[:, 0]) * 100
-    log.append('Hit-rate (odhalene real positives) '
-               + str(round(hitrate, ndigits = 2) ))
-    log.append('Precision (uspesnost predicted positives) '
-               + str(round(precision, ndigits=2) ))
-    if precision and hitrate:
-        f1_score = 2 / (1/precision + 1/hitrate)
-        log.append('f1-score (harm. priemer precision a recall) '
-               +str(round(f1_score, ndigits=2) ))
-    log.append('Confusion matrix (real x predicted):\n'
-               + str(conf_matrix))
-    if printout:
-        print('\n'.join(log))
-    return log
-
-def conv_output_size(padding, input_height, input_width, stride, kernel_height, kernel_width):
-    output_height, output_width = (0, 0)
-    if padding == "VALID":
-        output_height = (input_height - kernel_height) / stride + 1
-        output_width = (input_width - kernel_width) / stride + 1
-        output_height = int(np.floor(output_height))
-        output_width = int(np.floor(output_width))
-    if padding == "SAME":
-        output_height = input_height / stride
-        output_width = input_width / stride
-        output_height = int(np.ceil(output_height))
-        output_width = int(np.ceil(output_width))
-    return output_height, output_width
-
-def draw_prediction(pred, real, h, w):
-
-    def replace(tab, c, nc):
-        (r, g, b) = c
-        (nr, ng, nb) = nc
-        tab[r] = nr
-        tab[g + 256] = ng
-        tab[b + 256 * 2] = nb
-        return tab
-
-    table = list(range(256)) * 3
-    table = replace(table, [63] * 3, [255, 140, 0])
-    table = replace(table, [191] * 3, [255, 0, 0])
-
-    pred = pred.reshape([-1, h, w])
-    real = real.reshape([-1, h, w])
-
-    for i in range(pred.shape[0]):
-        img = pilimg.fromarray(255 * pred[i])
-        img = img.convert('RGB')
-        img.save('predictions/im{}_B_pred.png'.format(i))
-
-        img = pilimg.fromarray(255 * real[i])
-        img = img.convert('RGB')
-        img.save('predictions/im{}_A_real.png'.format(i))
-
-        p = np.round(pred[i])
-        suma = ((3*real[i] + p) * 255) // 4  # 0, 63, 191, 255
-        img = pilimg.fromarray(suma)
-        img = img.convert('RGB')
-        #replace siva - cervena
-        # seda - oranzova
-        img = img.point(table)
-        img.save('predictions/im{}_C_combo.png'.format(i))
-
