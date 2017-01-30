@@ -1,6 +1,5 @@
 import os
 import tensorflow as tf
-import collections
 import numpy as np
 from loading import DataClass
 from build_model import build_graph, accuracy
@@ -10,32 +9,32 @@ vocabulary_size = 20000
 batch_size = 16
 learning_rate = 0.0001
 
-datka = DataClass(os.getcwd(), 'wiki_texts', batch_size, vocabulary_size, data_use="train")
+data_train = DataClass(os.getcwd(), 'wiki_texts', batch_size, vocabulary_size, data_use="train")
 
-skuska = build_graph('2lang_2')
-skuska.data_shape(tf.int32, (None,), sequences=True)
-skuska.embeddings(vocabulary_size=vocabulary_size, embedding_size=16)
-skuska.lstm(128)
-skuska.relu()
-skuska.lstm(128, output='last')
-skuska.relu()
-skuska.fc(128)
-skuska.relu()
-skuska.fc(64)
-skuska.relu()
-skuska.fc(2)
-skuska.finish(learning_rate)
+model = build_graph('2lang_2')
+model.data_shape(tf.int32, (None,), sequences=True)
+model.embeddings(vocabulary_size=vocabulary_size, embedding_size=16)
+model.lstm(128)
+model.relu()
+model.lstm(128, output='last')
+model.relu()
+model.fc(128)
+model.relu()
+model.fc(64)
+model.relu()
+model.fc(2)
+model.finish(learning_rate)
 
 step = 0
-while step < 5000:
-    x, y, seqlen = datka.next_batch()
-    loss, predict, global_step = skuska.step(x, y, sequence_lengths=seqlen)
+while step < 500:
+    x, y, seqlen = data_train.next_batch()
+    loss, predict, global_step = model.step(x, y, sequence_lengths=seqlen)
     step += 1
     if step % 250 == 0:
         print('step', global_step)
         print('loss', loss)
         print('real v predict', list(zip(np.argmax(y, axis=-1), np.argmax(predict, axis=-1))))
         print('accuracy', accuracy(predict, y))
-skuska.save()
+model.save()
 
-skuska.session.close()
+model.session.close()
