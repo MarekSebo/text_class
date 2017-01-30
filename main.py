@@ -2,52 +2,62 @@ import os
 import tensorflow as tf
 import numpy as np
 from loading import DataClass
-from build_model import build_graph, accuracy, sample_distribution
+from build_model import BuildGraph, sample_distribution
+import logging
 
-url = os.getcwd()
-vocabulary_size = 18000
-batch_size = 2
-learning_rate = 0.0001
-lstm_size = 3
+if __name__ == '__main__':
+    name = 'general8'
+    batch_size = 1
+    learning_rate = 0.0001
+    lstm_size = 128
+    vocabulary_size = 18000
 
-datka = DataClass(os.getcwd(), 'wiki_texts', batch_size, vocabulary_size, data_use="train")
+    logging.basicConfig(level=20)
+    url = os.getcwd()
 
-skuska = build_graph('general3')
-skuska.data_shape(tf.int32, (1,))
-skuska.embeddings(vocabulary_size=vocabulary_size, embedding_size=16)
-skuska.lstm(lstm_size)
-skuska.relu()
-skuska.fc(64)
-skuska.relu()
-skuska.fc(16)
-skuska.relu()
-skuska.fc(vocabulary_size)
-skuska.finish(learning_rate)
+    data_train = DataClass(url, 'wiki_texts', batch_size, vocabulary_size, data_use="train")
 
-step = 0
-while step < 0:
-    x, y = datka.next_batch()
-    lstm_state = np.zeros((batch_size, lstm_size))
-    lstm_state = zip(lstm_state, lstm_state)
-    for x_, y_ in zip(x.T, y.T):
-        loss, predict, global_step, lstm_state = skuska.step(x_.reshape(-1, 1), y_, lstm_state=lstm_state)
-    step += 1
-    if step % 1 == 0:
-        print('real next word', datka.reverse_dictionary[y_[0]])
-        print('predicted', datka.reverse_dictionary[sample_distribution(predict[0])])
-        print('step', global_step)
-        print('---------------')
-        # print('loss', loss)
-        # print('real v predict', list(zip(np.argmax(y, axis=-1), np.argmax(predict, axis=-1))))
-skuska.save()
+    model = BuildGraph(name)
+    model.data_shape(tf.int32, (1,))
+    model.embeddings(vocabulary_size=vocabulary_size, embedding_size=16)
+    model.lstm(lstm_size)
+    model.relu()
+    model.fc(64)
+    model.relu()
+    model.fc(16)
+    model.relu()
+    model.fc(vocabulary_size)
+    model.finish(learning_rate)
 
-lstm_state = np.zeros((1, lstm_size))
-lstm_state = zip(lstm_state, lstm_state)
-x = np.array([1, 1])
-x = x.reshape(-1, 1)
-while step<50:
-    x, lstm_state = skuska.predict(x, lstm_state=lstm_state)
-    print(datka.reverse_dictionary[sample_distribution(x[0])])
+    step = 0
+    while step < 1:
+        x, y = data_train.next_batch()
+        lstm_state = np.zeros((batch_size, lstm_size))
+        lstm_state =[lstm_state, lstm_state]
+        for x_, y_ in zip(x.T, y.T):
+            loss, predict, global_step, lstm_state = model.step(x_.reshape(-1, 1), y_, lstm_state=lstm_state)
+        step += 1
+        if step % 1 == 0:
+            logging.info('real next word: {}'.format(data_train.reverse_dictionary[y_[0]]))
+            logging.info('predicted: {}'.format(data_train.reverse_dictionary[sample_distribution(predict[0])]))
+            logging.info('global step {}'.format(global_step))
+            logging.info('---------------')
+    model.save()
 
-skuska.session.close()
+    step = 0
+    generated_text = []
+    lstm_state = np.zeros((1, lstm_size))
+    lstm_state = (lstm_state, lstm_state)
 
+    x = np.array([1])
+    x = x.reshape(-1, 1)
+    while step < 50:
+        x, lstm_state = model.predict(x, lstm_state=lstm_state)
+        x = sample_distribution(x[0])
+        # x = np.argmax(x[0][1:]) + 1
+        generated_text.append(data_train.reverse_dictionary[x])
+        x = np.array([x]).reshape(-1, 1)
+        step += 1
+    print(' '.join(generated_text))
+
+    model.session.close()

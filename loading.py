@@ -1,7 +1,5 @@
 import numpy as np
 import os
-from keras.preprocessing.image import ImageDataGenerator, img_to_array, load_img
-from PIL import Image as pilimg
 from numpy import random
 import tensorflow as tf
 import collections
@@ -157,7 +155,6 @@ class DataClass(object):
     @staticmethod
     def final_data(train_path, dictionary, url):
         # v train su iba priecinky, v kazdom su txt subory v jednej class
-        print("finaldata_begin dir: ", os.getcwd())
         label_names = os.listdir()
         label_names.sort()
         unk_count = 0  # count of unknown words

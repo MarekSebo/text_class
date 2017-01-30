@@ -5,7 +5,7 @@ import logging
 import os
 
 
-class build_graph(object):
+class BuildGraph(object):
     def __init__(self, name):
         self.current_shape = None
         self.w = 0
@@ -50,8 +50,6 @@ class build_graph(object):
         self.out = tf.reshape(self.out, [-1, np.prod(self.current_shape[1:])])
         self.current_shape = self.out.get_shape()
 
-        print('pred_fc', self.out.get_shape().as_list())
-
         self.weights['fc_weights_{}'.format(self.w)] = tf.get_variable(
             'fc_weights_{}'.format(self.w),
             shape=(self.current_shape[-1], layer_size),
@@ -80,14 +78,12 @@ class build_graph(object):
             initial_state = tf.nn.rnn_cell.LSTMStateTuple(self.c_state, self.h_state)
 
             self.lstm_cells.append(tf.nn.rnn_cell.BasicLSTMCell(lstm_size))
-            print(self.lstm_cells[-1].state_size)
 
-            self.out, self.state_lstm = tf.nn.dynamic_rnn(
+            self.out, self.lstm_state = tf.nn.dynamic_rnn(
                 cell=self.lstm_cells[-1], inputs=self.out, dtype=tf.float32, initial_state=initial_state)
 
             if output == 'last':
                 self.out = self.out[:, -1, :]
-        print('lstm', self.out.get_shape().as_list())
 
         self.current_shape = self.out.get_shape().as_list()
         self.lstms += 1
@@ -123,20 +119,20 @@ class build_graph(object):
         if lstm_state is not None:
             feed[self.c_state], feed[self.h_state] = lstm_state
 
-        loss, _, predict, summary, step, state_lstm = self.session.run(
-            [self.loss_op, self.optimizer_op, self.prediction, self.tb_loss_train, self.global_step, self.state_lstm], feed_dict=feed)
+        loss, _, predict, summary, step, lstm_state = self.session.run(
+            [self.loss_op, self.optimizer_op, self.prediction, self.tb_loss_train, self.global_step, self.lstm_state], feed_dict=feed)
 
         # self.steps += 1
         self.file_writer.add_summary(summary, global_step=step)
 
-        return loss, predict, step, state_lstm
+        return loss, predict, step, lstm_state
 
 
     def save(self):
         self.saver.save(self.session, "{}/logs/{}/{}.ckpt".format(os.getcwd(), self.session_name, self.session_name),
                         global_step=self.global_step)
 
-    def predict(self, x, sequence_lengths = None, lstm_state = None):
+    def predict(self, x, sequence_lengths=None, lstm_state=None):
         feed = {self.input: x}
 
         if sequence_lengths is not None:
@@ -145,10 +141,7 @@ class build_graph(object):
         if lstm_state is not None:
             feed[self.c_state], feed[self.h_state] = lstm_state
 
-
-        print(feed)
-
-        return self.session.run([self.prediction, self.state_lstm], feed_dict=feed)
+        return self.session.run([self.prediction, self.lstm_state], feed_dict=feed)
 
     def data_shape(self, type, shape, sequences=False):
         # run this before the first layer
@@ -195,11 +188,12 @@ def accuracy(predictions, labels):
 def sample_distribution(distribution):
     """Sample one element from a distribution assumed to be an array of normalized
     probabilities.
+    Exclude first element of distribution (UNK)
     """
-    r = np.random.uniform(0, 1)
+    r = np.random.uniform(0, 1 - distribution[0])
     s = 0
-    for i in range(len(distribution)):
-        s += distribution[i]
+    for i, prob in enumerate(distribution[1:]):
+        s += prob
         if s >= r:
-            return i
+            return i + 1
     return len(distribution) - 1
