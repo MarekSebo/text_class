@@ -6,7 +6,7 @@ from build_model import BuildGraph, sample_distribution
 import logging
 
 if __name__ == '__main__':
-    name = 'general8'
+    name = 'kapitan27'
     batch_size = 1
     learning_rate = 0.0001
     lstm_size = 128
@@ -18,19 +18,20 @@ if __name__ == '__main__':
     data_train = DataClass(url, 'wiki_texts', batch_size, vocabulary_size, data_use="train")
 
     model = BuildGraph(name)
-    model.data_shape(tf.int32, (1,))
-    model.embeddings(vocabulary_size=vocabulary_size, embedding_size=16)
-    model.lstm(lstm_size)
-    model.relu()
-    model.fc(64)
-    model.relu()
-    model.fc(16)
-    model.relu()
-    model.fc(vocabulary_size)
-    model.finish(learning_rate)
+    # model.data_shape(tf.int32, (1,))
+    # model.embeddings(vocabulary_size=vocabulary_size, embedding_size=16)
+    # model.lstm(lstm_size)
+    # model.relu()
+    # model.fc(64)
+    # model.relu()
+    # model.fc(16)
+    # model.relu()
+    # model.fc(vocabulary_size)
+    # model.finish(learning_rate)
+    model.potom()
 
     step = 0
-    while step < 1:
+    while step < 2:
         x, y = data_train.next_batch()
         lstm_state = np.zeros((batch_size, lstm_size))
         lstm_state =[lstm_state, lstm_state]

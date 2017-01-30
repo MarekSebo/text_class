@@ -75,6 +75,8 @@ class BuildGraph(object):
         with tf.variable_scope('lstm_{}'.format(self.lstms)):
             self.c_state = tf.placeholder(dtype=tf.float32, shape=(None, lstm_size))
             self.h_state = tf.placeholder(dtype=tf.float32, shape=(None, lstm_size))
+            tf.add_to_collection('states', self.c_state)
+            tf.add_to_collection('states', self.h_state)
             initial_state = tf.nn.rnn_cell.LSTMStateTuple(self.c_state, self.h_state)
 
             self.lstm_cells.append(tf.nn.rnn_cell.BasicLSTMCell(lstm_size))
@@ -84,6 +86,10 @@ class BuildGraph(object):
 
             if output == 'last':
                 self.out = self.out[:, -1, :]
+
+            tf.add_to_collection('lstm_state', self.lstm_state[0])
+            tf.add_to_collection('lstm_state', self.lstm_state[1])
+
 
         self.current_shape = self.out.get_shape().as_list()
         self.lstms += 1
@@ -124,13 +130,17 @@ class BuildGraph(object):
 
         # self.steps += 1
         self.file_writer.add_summary(summary, global_step=step)
-
         return loss, predict, step, lstm_state
 
 
     def save(self):
-        self.saver.save(self.session, "{}/logs/{}/{}.ckpt".format(os.getcwd(), self.session_name, self.session_name),
+        self.saver.save(self.session, '{}/logs/{}/{}'.format(os.getcwd(), self.session_name, self.session_name),
                         global_step=self.global_step)
+        self.saver.export_meta_graph('{}/logs/{}/{}.meta'.format(os.getcwd(), self.session_name, self.session_name))
+
+    def load(self, dir_ckpt):
+        self.saver = tf.train.import_meta_graph('{}/logs/{}/{}.meta'.format(os.getcwd(), self.session_name, self.session_name))
+        self.saver.restore(self.session, tf.train.latest_checkpoint(dir_ckpt))#nevie to nacitat lebo je v ckpt aj cislo kroku a tu nie
 
     def predict(self, x, sequence_lengths=None, lstm_state=None):
         feed = {self.input: x}
@@ -157,6 +167,7 @@ class BuildGraph(object):
         if sequences:
             self.seq_len = tf.placeholder(tf.int32, shape=[None])
 
+
     def finish(self, learning_rate):
         # defines loss etc....
         self.prediction = tf.nn.softmax(self.out)
@@ -168,17 +179,44 @@ class BuildGraph(object):
 
         self.tb_loss_train = tf.summary.scalar('loss_function_batch', self.loss_op)
         self.tb_loss_valid = tf.summary.scalar('loss_function_valid', self.loss_op)
-        self.saver = tf.train.Saver()
+
         self.file_writer = tf.summary.FileWriter('logs/{}'.format(self.session_name))
 
+        tf.add_to_collection('output', self.out)
+        tf.add_to_collection('intput', self.input)
+        tf.add_to_collection('labels', self.labels)
+        tf.add_to_collection('prediction', self.prediction)
+        tf.add_to_collection('others', self.loss_op)
+        tf.add_to_collection('others', self.optimizer_op) #make it so that you can insert LR
+        tf.add_to_collection('others', self.tb_loss_train)
+        tf.add_to_collection('others', self.global_step)
+
+        self.potom()
+
+    def potom(self):
         self.session = tf.InteractiveSession()
 
         dir_ckpt = 'logs/{}'.format(self.session_name)
         if tf.train.latest_checkpoint(dir_ckpt) is not None:
-            self.saver.restore(self.session, tf.train.latest_checkpoint(dir_ckpt))
+            self.load(dir_ckpt)
         else:
             logging.exception('File not found, initializing new model')
             self.session.run(tf.global_variables_initializer())
+            self.saver = tf.train.Saver()
+            return
+
+        self.out = tf.get_collection('output')[0]
+        self.input = tf.get_collection('intput')[0]
+        self.labels = tf.get_collection('labels')[0]
+        self.prediction = tf.get_collection('prediction')[0]
+
+        self.c_state, self.h_state= tf.get_collection('states')
+        self.lstm_state = tf.nn.rnn_cell.LSTMStateTuple(tf.get_collection('lstm_state')[0],
+                                                        tf.get_collection('lstm_state')[1])
+        print(self.c_state, self.lstm_state)
+        self.loss_op, self.optimizer_op, self.tb_loss_train, self.global_step = tf.get_collection('others')
+        self.file_writer = tf.summary.FileWriter('logs/{}'.format(self.session_name))
+
 
 def accuracy(predictions, labels):
     acc = np.sum([(labels[i, np.argmax(predictions[i, :])] == 1) for i in range(predictions.shape[0])]) \
