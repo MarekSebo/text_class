@@ -31,7 +31,7 @@ if __name__ == '__main__':
     model.potom()
 
     step = 0
-    while step < 2:
+    while step < 27000:
         x, y = data_train.next_batch()
         lstm_state = np.zeros((batch_size, lstm_size))
         lstm_state =[lstm_state, lstm_state]
